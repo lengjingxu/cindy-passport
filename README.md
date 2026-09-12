@@ -13,7 +13,8 @@ AI Passport is FoloToy's open-source wearable device with a screen, buttons, mic
 - [Official community and applications](https://ai-passport.folotoy.cn)
 - [Official hardware/source repository](https://github.com/FoloToy/ai-passport)
 - [Cindy](https://github.com/makecindy/cindy)
-- [Matching Cindy companion branch](https://github.com/lengjingxu/cindy/tree/feat/ai-passport-companion) — the companion PR will be linked here after submission.
+- [Cindy companion PR #4360](https://github.com/makecindy/cindy/pull/4360) — pending upstream review; use the PR branch until it is included in a Cindy release.
+- [Firmware v0.1.0](https://github.com/lengjingxu/cindy-passport/releases/tag/v0.1.0-cindy-passport). Community submission: project 313, revision 516, pending review (not publicly approved).
 
 ## Use it
 

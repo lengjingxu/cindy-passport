@@ -13,7 +13,8 @@ AI Passport 是 FoloToy 的开源随身设备，带有屏幕、按键、麦克�
 - [官方社区与玩法](https://ai-passport.folotoy.cn)
 - [官方硬件与源码仓库](https://github.com/FoloToy/ai-passport)
 - [Cindy](https://github.com/makecindy/cindy)
-- [配套 Cindy 分支](https://github.com/lengjingxu/cindy/tree/feat/ai-passport-companion)——提交官方 PR 后会补上链接。
+- [Cindy 配套 PR #4360](https://github.com/makecindy/cindy/pull/4360)：等待上游审核，正式版本包含此功能前请使用 PR 分支。
+- [固件 v0.1.0](https://github.com/lengjingxu/cindy-passport/releases/tag/v0.1.0-cindy-passport)。社区项目 313、版本 516 已提交审核，当前待审核，尚未公开。
 
 ## 使用方式
 
