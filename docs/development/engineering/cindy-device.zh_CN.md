@@ -1,0 +1,51 @@
+<p align="right"><strong>简体中文</strong> · <a href="cindy-device.md">English</a></p>
+
+# Cindy 设备连接与交互
+
+这是 Cindy 设备固件。[Codex Buddy](https://github.com/zhangsan2000w-art/ai-passport-codex-buddy/tree/52d612cbe47c4528b95994710d320b19cc7479c6) 提供蓝牙任务状态、心跳、中文界面和实体按键的设计参考；它的 Windows 桥接与 Codex hooks 不能连接 Cindy。
+
+## 中文与录音参考
+
+[AI Passport 小智](https://github.com/FoloToy/folo-ai-passport-xiaozhi/tree/d24fce080d86d7cc642f71585f6efde40fb99104/main/audio) 使用 16 kHz 单声道、60 ms Opus 帧、复杂度 0 和有界队列，通过 WebSocket/Wi-Fi 传输。Cindy 保留相同编码器设置，在无 PSRAM 的蓝牙目标上改用 40 ms 帧。16 kbit/s 下每个载荷不超过 120 字节的 indication 限制。拥塞会中止整段录音，不静默丢字。
+
+小智使用 Noto 字库资产，支持二进制字库加载与按需字形下发。Cindy 将 14 px、1 bpp 的 Noto 中文点阵放在 Flash，来源与许可见[字库说明](../../../assets/README.zh_CN.md)。覆盖 ASCII、中文标点、扩展 A、基本汉字区和全角字符，不覆盖 emoji 与扩展 B。任务预览按 UTF-8 字符边界截断，不需要 PSRAM。
+
+## 蓝牙交互
+
+使用配套 Cindy macOS 客户端，在设置 → 快捷键 → 配件 → Cindy Passport 中启用。设备进入 **Cindy BLE**，电脑选择发现的设备标识；macOS 请求配对时输入设备屏幕显示的码。界面显示权限与连接状态，不需要 IP 或 HTTP 桥接。菜单栏控制仍可使用。
+
+任务列表显示状态，上下键选择，确认键进入详情。详情中上下键翻页阅读 Cindy 的最新可见回复，确认键开始录音，再按确认停止并转写；30 秒自动停止。设备随后显示转写文字：上键丢弃并重录，下键循环翻页，确认键发送到原任务。长按确认退出并取消未确认的录音。回复读取遵守清空与回溯边界。
+
+Wi-Fi 录音保留独立发送任务和 8 块 PCM 队列。BLE 录音在页面 worker 的固定 28 KB 栈中运行 Opus，512 字节采集块放在栈外；LVGL 池为 32 KB。控制动作和分页文字复用已有有界蓝牙传输，完整回复和转写保留在 Mac。每次 indication 最多等待确认 1.5 秒；写入或确认出错会取消整段录音。
+
+客户端保留已观察到的完成/错误任务，活动提示清空后仍可选择；归档或删除后按正式任务目录移除。最多显示 8 个任务，依次优先等待、错误、运行、完成。保留记录仅在内存中，最多 100 条，适配器停止时清空；活动任务可能占满 8 个位置。这是本机任务目录，不复刻远程镜像行或侧栏排序。
+
+完整录音在 Mac 内存中解码为 16 kHz 单声道 PCM，交给 Cindy 当前选择的语音输入服务和识别模型。Cindy 内置语音使用已有会话服务，用户显式配置的供应商沿用已有凭据与连接方式。转写期间切换语音配置或账号会中止该段录音，Passport 不自行改选模型。只有匹配本次录音的硬件确认才会放行文字。Cindy 打开原任务并通过已有输入队列提交，保留用户当前草稿。每次确认只领取一次；发送被拒后回到设备预览，需重新确认。投递前复核账号、连接和任务边界。
+
+## 协议
+
+服务 `C1DC0001-51C4-499D-A186-4621A4938301` 使用认证配对、Secure Connections 与 16 字节密钥。RX `8302` 接收认证写入，TX `8303` 提供认证读取和打开任务通知。快照为 uint16LE 载荷长度、版本 1、0–8 个任务，每条 328 字节：UTF-8 id/title/status/message 分别占 40/80/16/192 字节，以 NUL 填充。Mac 每 5 秒发送心跳，设备 10 秒无快照后清空任务。BLE 回调不访问 LVGL。
+
+录音特征 `8304` v1 使用 indication：`kind:u8, token:u32LE, sequence:u16LE, payload`。开始 kind 1 携带 40 字节任务 ID，序号为 0；数据 kind 2 携带 1–120 字节的 40 ms Opus，序号从 0 连续递增。结束 kind 3、取消 kind 4 无载荷，使用下一个序号。最多 752 帧容纳 30 秒录音、补齐帧和编码器尾部排空；Mac 拒绝不完整序列或耗时超过 45 秒的录音。Ogg 保留编码延迟和尾部静音，不猜测 preskip。没有 `8304` 支持的旧客户端不能录音，需要两端一起更新。
+
+任务控制 TX 通知为 `version=2:u8, action:u8, taskId:40 bytes, recordingToken:u32LE`（46 字节，ATT MTU 至少 49）。动作 1–6 分别为进入、上一页、下一页、重录、确认和取消。预览操作必须匹配任务和录音标识。快照状态 `draft:<8位十六进制标识>` 表示待确认，`retry:<标识>` 表示发送被拒，`asr:<标识>` 表示正在转写，`error:<标识>` 表示转写失败；设备显示中文状态，不显示标识。文字在 192 字节 message 字段内以 `[页码/总页数]` 和三行短文本分页。固件与电脑端须一起更新。
+
+## 重新配对
+
+已保存的配对如果不是认证配对，或 Mac 上残留旧密钥，每次重连都会立刻断开：
+链路用旧密钥加密，固件随即终止连接。现在固件会删除该对端记录并断开一次，
+下次连接重新走六位码配对。若 macOS 仍复用旧密钥，在系统设置 -> 蓝牙里忽略
+"Cindy Passport" 后重连。
+
+把 `FoloToy-AI-Passport.bin` 写入 `0x10000` 只更新应用，不动 NVS。从 `0x0`
+写入合并镜像会把包括 `0x9000` NVS 分区在内的空隙填成 `0xFF`。
+
+## 旧 Wi-Fi 模式
+
+**Cindy Tasks** 是独立手动选择的局域网模式，使用忽略提交的 `main/app_config.h` 和 `python3 bridge/server.py --port 8787`。任务来源是文件，HTTP 分块 PCM 保存为 WAV，不提供真实 Cindy 事件或转写。蓝牙不会切换到这条路径。本地配置固件可能含凭证，不能公开上传。
+
+## 构建与验收
+
+激活 ESP-IDF 5.5.3 后运行 `./tools/validate.sh`，验证后的合并镜像位于 `build/FoloToy-AI-Passport-full.bin`。保留 8 MB Flash、3 MB 应用上限及 `0x356000` 的 `cardid`。确认镜像结束地址早于 `cardid` 后可从 `0x0` 写入，不整片擦除。
+
+分别报告 Build、Host tests、Device tests、Unverified。主机检查覆盖 UTF-8/任务模型、有界录音队列及清理；Mac 检查覆盖协议限制、完成任务保留及 Ogg 封装。中文屏幕、蓝牙录音/转写连续性、反复录音的堆稳定性、权限弹窗、重连和页面退出仍需设备验收；编译通过不能证明这些结果。
